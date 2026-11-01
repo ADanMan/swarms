@@ -1,11 +1,42 @@
 import multiprocessing
+import queue
 import threading
 
+import pytest
+
+from swarms import QueueChannel
 from swarms.structs.conversation import Conversation
-from swarms.structs.queue_channel import QueueChannel
 
 
 class TestQueueChannel:
+    @pytest.mark.parametrize(
+        "use_process_queue", [False, True], ids=["thread", "process"]
+    )
+    def test_readers_cannot_change_the_channel_history(
+        self, use_process_queue: bool
+    ) -> None:
+        q = (
+            multiprocessing.Queue()
+            if use_process_queue
+            else queue.Queue()
+        )
+        channel = QueueChannel(q)
+        original = {"agent_name": "Writer", "content": "original"}
+        try:
+            channel.post(**original)
+            snapshot = channel.messages()
+            snapshot[0]["content"] = "edited snapshot"
+
+            received = channel.wait(timeout=1)
+            assert received == original
+            received["content"] = "edited delivery"
+            assert channel.messages() == [original]
+            assert snapshot[0]["content"] == "edited snapshot"
+        finally:
+            if use_process_queue:
+                q.close()
+                q.join_thread()
+
     def test_posts_are_both_history_and_queued(self):
         channel = QueueChannel()
         channel.post("user", "Report on EVs.")

@@ -36,11 +36,11 @@ class QueueChannel(CommsChannel):
         message = {"agent_name": agent_name, "content": str(content)}
         with self._lock:
             self._history.append(message)
-        self.queue.put(message)
+        self.queue.put(message.copy())
 
     def messages(self) -> List[Dict[str, Any]]:
         with self._lock:
-            return list(self._history)
+            return [message.copy() for message in self._history]
 
     def wait(
         self, timeout: Optional[float] = None
